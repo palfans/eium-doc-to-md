@@ -405,7 +405,8 @@ def build_cli_parser() -> argparse.ArgumentParser:
         '--input',
         '-i',
         type=Path,
-        help='Input file or directory. Defaults to built-in HTML batch conversion.',
+        required=True,
+        help='Input file or directory.',
     )
     parser.add_argument(
         '--output',
@@ -417,65 +418,32 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """Main entry point for batch conversion of documentation files.
-
-    Converts HTML documentation files from predefined directory structures
-    to Markdown format. Processes files from the following directories:
-        - components
-        - attributes
-        - packages
-        - releases
-
-    Also handles special case for docbook.html conversion.
-
-    The function expects the following directory structure:
-        docs/manuals/ium_componentref/html/{directory}/*.html
-        docs/manuals/commandref/html/docbook.html
-
-    Output files are written to:
-        docs/manuals/ium_componentref/markdown/{directory}/*.md
-        docs/manuals/commandref/markdown/commandref.md
-    """
+    """Main entry point for batch conversion of documentation files."""
     parser = build_cli_parser()
     args = parser.parse_args()
-    if args.input is not None:
-        input_path = args.input
-        if not input_path.exists():
-            raise FileNotFoundError(f'Input path not found: {input_path}')
-        if input_path.is_file():
-            output_path = args.output or input_path.with_suffix('.md')
-            convert_document(input_path, output_path)
-            return
-        if args.output is None:
-            raise ValueError('Output directory is required when input is a directory.')
-        output_root = args.output
-        sources = [
-            path
-            for path in input_path.rglob('*')
-            if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
-        ]
-        for source_path in tqdm(sources, desc='Converting files', unit='file'):
-            relative = source_path.relative_to(input_path)
-            output_path = output_root / relative.with_suffix('.md')
-            convert_document(source_path, output_path)
+    input_path = args.input
+    if not input_path.exists():
+        raise FileNotFoundError(f'Input path not found: {input_path}')
+    if input_path.is_file():
+        output_path = args.output
+        if output_path is None:
+            output_path = input_path.with_suffix('.md')
+        elif (output_path.exists() and output_path.is_dir()) or output_path.suffix == '':
+            output_path = output_path / input_path.with_suffix('.md').name
+        convert_document(input_path, output_path)
         return
-
-    html_root = Path('docs/manuals/ium_componentref/html')
-    md_root = Path('docs/manuals/ium_componentref/markdown')
-    targets = []
-    for directory in ['components', 'attributes', 'packages', 'releases']:
-        dir_path = html_root / directory
-        if dir_path.exists():
-            for html_file in dir_path.rglob('*.html'):
-                targets.append(html_file)
-    for html_file in tqdm(targets, desc='Converting HTML manuals', unit='file'):
-        rel = html_file.relative_to(html_root)
-        md_file = md_root / rel.with_suffix('.md')
-        convert_file(html_file, md_file)
-
-    docbook_html = Path('docs/manuals/commandref/html/docbook.html')
-    if docbook_html.exists():
-        convert_file(docbook_html, Path('docs/manuals/commandref/markdown/commandref.md'))
+    if args.output is None:
+        raise ValueError('Output directory is required when input is a directory.')
+    output_root = args.output
+    sources = [
+        path
+        for path in input_path.rglob('*')
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+    ]
+    for source_path in tqdm(sources, desc='Converting files', unit='file'):
+        relative = source_path.relative_to(input_path)
+        output_path = output_root / relative.with_suffix('.md')
+        convert_document(source_path, output_path)
 
 
 if __name__ == '__main__':

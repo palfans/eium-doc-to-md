@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+cd "$ROOT_DIR"
+
+if command -v uv >/dev/null 2>&1; then
+  uv run python src/convert_manuals.py "$@"
+  exit 0
+fi
+
+if command -v python >/dev/null 2>&1; then
+  python src/convert_manuals.py "$@"
+  exit 0
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 src/convert_manuals.py "$@"
+  exit 0
+fi
+
+echo "Python interpreter not found. Please install python3." >&2
+exit 1

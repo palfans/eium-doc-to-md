@@ -1,6 +1,8 @@
 # eIUM Documentation to Markdown Converter
 
-将 eIUM HTML 文档转换为 GitHub Flavored Markdown (GFM) 格式的 Python 工具，使用 Pandoc 和自定义 Lua 过滤器。
+[English](README_EN.md)
+
+将 eIUM HTML/PDF/DOCX 文档转换为 GitHub Flavored Markdown (GFM) 格式的 Python 工具，使用 Pandoc 和自定义 Lua 过滤器。
 
 ## 功能特性
 
@@ -51,19 +53,7 @@
 
 ## 使用方法
 
-### 基本用法
-
-运行转换器处理文档文件:
-
-```bash
-python src/convert_manuals.py
-```
-
-这将转换以下目录结构中的所有 HTML 文件:
-- `docs/manuals/ium_componentref/html/` → `docs/manuals/ium_componentref/markdown/`
-- `docs/manuals/commandref/html/docbook.html` → `docs/manuals/commandref/markdown/commandref.md`
-
-### CLI 入口（新增）
+### CLI 入口
 
 #### 单文件转换（HTML/PDF/DOCX）
 
@@ -73,7 +63,9 @@ python src/convert_manuals.py -i input/example.docx -o output/example.md
 python src/convert_manuals.py -i input/example.html -o output/example.md
 ```
 
+`-i` 为必填。
 若不指定 `-o`，默认输出为同目录 `.md` 文件。
+若 `-o` 指向目录，则在该目录生成同名 `.md` 文件。
 
 #### 目录批量转换
 
@@ -81,7 +73,14 @@ python src/convert_manuals.py -i input/example.html -o output/example.md
 python src/convert_manuals.py -i input_dir -o output_dir
 ```
 
-将递归处理目录内的 `.html`、`.pdf`、`.docx` 文件，并保持目录结构输出为 `.md`。
+目录模式下 `-o` 必填。递归处理目录内的 `.html`、`.pdf`、`.docx` 文件，并保持目录结构输出为 `.md`。
+
+### 包装脚本
+
+```bash
+./bin/eium-convert -i input/example.pdf -o output/example.md
+./bin/eium-convert -i input_dir -o output_dir
+```
 
 ### 编程使用
 
@@ -148,12 +147,15 @@ PDF/DOCX 转换流程：
 
 ```
 eium-doc-to-md/
+├── bin/
+│   └── eium-convert            # 包装脚本
 ├── src/
-│   ├── convert_manuals.py    # 主转换脚本
-│   └── html_to_md.lua         # Pandoc Lua 过滤器
-├── main.py                    # 入口点
-├── pyproject.toml             # 项目配置
-└── README.md                  # 本文件
+│   ├── convert_manuals.py      # 主转换脚本
+│   └── html_to_md.lua          # Pandoc Lua 过滤器
+├── main.py                     # 入口点
+├── pyproject.toml              # 项目配置
+├── README.md                   # 中文说明
+└── README_EN.md                # English README
 ```
 
 ## 配置
@@ -201,7 +203,7 @@ pandoc --version
 
 ### Lua 过滤器未找到
 
-确保 Lua 过滤器文件存在于 `FILTER` 指定的路径。默认路径是 `scripts/html_to_md.lua`。
+确保 Lua 过滤器文件存在于 `FILTER` 指定的路径。默认路径是 `src/html_to_md.lua`。
 
 ### 编码问题
 
