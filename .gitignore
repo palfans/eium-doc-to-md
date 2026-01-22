@@ -11,14 +11,18 @@ wheels/
 
 # AI tools
 .vscode/
-.ai/
+
+.ai/*
+!.ai/prompts/
+.ai/prompts/*
+!.ai/prompts/context.md
+
+
 .gemini/
-.github/chatmodes
+.github/chatmodes/
 AGENTS.md
-.claude/skills/zc-load-project-context/SKILL.md
-.claude/skills/zc-load-project-context/references/context_template_notes.md
-.codex/skills/zc-load-project-context/SKILL.md
-.codex/skills/zc-load-project-context/references/context_template_notes.md
+.claude/
+.codex/
 
 # Cache files
 .ruff_cache/
