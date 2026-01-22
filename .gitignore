@@ -14,6 +14,12 @@ wheels/
 .ai/
 .gemini/
 .github/chatmodes
+AGENTS.md
+.claude/skills/zc-load-project-context/SKILL.md
+.claude/skills/zc-load-project-context/references/context_template_notes.md
+.codex/skills/zc-load-project-context/SKILL.md
+.codex/skills/zc-load-project-context/references/context_template_notes.md
 
 # Cache files
 .ruff_cache/
+temp/
