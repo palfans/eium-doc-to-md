@@ -10,6 +10,8 @@
 - 🎨 **输出优化**: 删除多余空行，规范化空白字符
 - 🔧 **自定义过滤**: 使用 Lua 过滤器处理高级 HTML 元素
 - 🔗 **链接重写**: 自动将 `.html` 链接转换为 `.md`
+- 📄 **PDF/Word 转换**: 使用 MarkItDown 支持 PDF/DOCX → Markdown
+- ⏳ **进度显示**: 批量转换时显示 tqdm 进度条
 
 ## 依赖要求
 
@@ -22,6 +24,14 @@
   
   # macOS
   brew install pandoc
+  ```
+- **MarkItDown**: PDF/DOCX 转换（可选）
+  ```bash
+  uv add "markitdown[pdf,docx]"
+  ```
+- **tqdm**: 进度条显示
+  ```bash
+  uv add tqdm
   ```
 
 ## 安装步骤
@@ -53,17 +63,43 @@ python src/convert_manuals.py
 - `docs/manuals/ium_componentref/html/` → `docs/manuals/ium_componentref/markdown/`
 - `docs/manuals/commandref/html/docbook.html` → `docs/manuals/commandref/markdown/commandref.md`
 
+### CLI 入口（新增）
+
+#### 单文件转换（HTML/PDF/DOCX）
+
+```bash
+python src/convert_manuals.py -i input/example.pdf -o output/example.md
+python src/convert_manuals.py -i input/example.docx -o output/example.md
+python src/convert_manuals.py -i input/example.html -o output/example.md
+```
+
+若不指定 `-o`，默认输出为同目录 `.md` 文件。
+
+#### 目录批量转换
+
+```bash
+python src/convert_manuals.py -i input_dir -o output_dir
+```
+
+将递归处理目录内的 `.html`、`.pdf`、`.docx` 文件，并保持目录结构输出为 `.md`。
+
 ### 编程使用
 
 在 Python 代码中使用转换功能:
 
 ```python
 from pathlib import Path
-from src.convert_manuals import convert_file
+from src.convert_manuals import convert_document, convert_file
 
 # 转换单个文件
 convert_file(
     html_path=Path('input/example.html'),
+    md_path=Path('output/example.md')
+)
+
+# 转换 PDF 或 DOCX
+convert_document(
+    input_path=Path('input/example.pdf'),
     md_path=Path('output/example.md')
 )
 ```
@@ -92,6 +128,11 @@ for html_file in input_dir.rglob('*.html'):
 3. **代码块转换**: 将缩进代码块（4个空格）转换为围栏代码块
 4. **空白规范化**: 压缩多余的空行，删除尾随空格
 5. **字符替换**: 将特殊字符和转义序列替换为 HTML 实体
+
+PDF/DOCX 转换流程：
+1. **MarkItDown**: 将 PDF/DOCX 转换为 Markdown
+2. **Pandoc + Lua 过滤器**: 标准化输出为 GFM
+3. **后处理**: 表格、代码块、空白与字符清理
 
 ## Lua 过滤器
 
@@ -134,7 +175,7 @@ PANDOC_BASE_CMD = [
 ### Lua 过滤器路径
 
 ```python
-FILTER = Path('scripts/html_to_md.lua')
+FILTER = Path('src/html_to_md.lua')
 ```
 
 ## 代码质量
@@ -189,4 +230,3 @@ uv run ruff format src/
 ## 仓库
 
 https://github.com/palfans/eium-doc-to-md
-

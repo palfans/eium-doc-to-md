@@ -22,12 +22,17 @@ Example:
         >>> convert_file(Path('input.html'), Path('output.md'))
 """
 
+import argparse
+import importlib
 import re
 import subprocess
 from pathlib import Path
 
-FILTER = Path('scripts/html_to_md.lua')
+from tqdm import tqdm
+
+FILTER = Path('src/html_to_md.lua')
 PANDOC_BASE_CMD = ['pandoc', '--from=html', '--to=gfm', '--wrap=none', f'--lua-filter={FILTER}']
+SUPPORTED_EXTENSIONS = {'.html', '.pdf', '.docx'}
 
 SUMMARY_ROW_RE = re.compile(r'^\*\*(.+?):\*\*\s*(.*)$')
 
@@ -293,6 +298,55 @@ def convert_indented_code_blocks(lines: list[str]) -> list[str]:
     return result
 
 
+def normalize_markdown_lines(lines: list[str]) -> str:
+    """Apply post-processing steps to Markdown lines and return final content."""
+    lines = rewrite_summary_tables(lines)
+    lines = convert_indented_code_blocks(lines)
+    lines = collapse_blank_lines(lines)
+    md_content = '\n'.join(line.rstrip() for line in lines).strip()
+    md_content = md_content.replace('\u00a0', ' ')
+    md_content = (
+        md_content.replace('\\<', '&lt;')
+        .replace('\\>', '&gt;')
+        .replace('\\[', '&#91;')
+        .replace('\\]', '&#93;')
+    )
+    if md_content:
+        md_content += '\n'
+    return md_content
+
+
+def write_markdown(md_path: Path, md_content: str) -> None:
+    """Write Markdown content to the output path, creating directories if needed."""
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.write_text(md_content, encoding='utf-8')
+
+
+def run_pandoc_on_text(text: str, source_format: str) -> list[str]:
+    """Run Pandoc on provided text and return output lines."""
+    cmd = [
+        'pandoc',
+        f'--from={source_format}',
+        '--to=gfm',
+        '--wrap=none',
+        f'--lua-filter={FILTER}',
+    ]
+    completed = subprocess.run(cmd, check=True, input=text, capture_output=True, text=True)
+    return completed.stdout.splitlines()
+
+
+def load_markitdown_converter():
+    """Load MarkItDown converter lazily to keep it optional."""
+    try:
+        module = importlib.import_module('markitdown')
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            'MarkItDown is required for DOCX/PDF conversion. '
+            "Install with: uv add 'markitdown[pdf,docx]'"
+        ) from exc
+    return module.MarkItDown
+
+
 def convert_file(html_path: Path, md_path: Path) -> None:
     """Convert an HTML file to Markdown format with custom processing.
 
@@ -319,22 +373,47 @@ def convert_file(html_path: Path, md_path: Path) -> None:
     """
     cmd = PANDOC_BASE_CMD + [str(html_path)]
     completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    lines = completed.stdout.splitlines()
-    lines = rewrite_summary_tables(lines)
-    lines = convert_indented_code_blocks(lines)
-    lines = collapse_blank_lines(lines)
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    md_content = '\n'.join(line.rstrip() for line in lines).strip()
-    md_content = md_content.replace('\u00a0', ' ')
-    md_content = (
-        md_content.replace('\\<', '&lt;')
-        .replace('\\>', '&gt;')
-        .replace('\\[', '&#91;')
-        .replace('\\]', '&#93;')
+    md_content = normalize_markdown_lines(completed.stdout.splitlines())
+    write_markdown(md_path, md_content)
+
+
+def convert_docx_or_pdf(doc_path: Path, md_path: Path) -> None:
+    """Convert DOCX/PDF documents to Markdown using MarkItDown and Pandoc."""
+    converter = load_markitdown_converter()(enable_plugins=False)
+    result = converter.convert(str(doc_path))
+    lines = run_pandoc_on_text(result.text_content, 'markdown')
+    md_content = normalize_markdown_lines(lines)
+    write_markdown(md_path, md_content)
+
+
+def convert_document(input_path: Path, md_path: Path) -> None:
+    """Convert HTML, DOCX, or PDF documents to Markdown."""
+    suffix = input_path.suffix.lower()
+    if suffix == '.html':
+        convert_file(input_path, md_path)
+        return
+    if suffix in {'.docx', '.pdf'}:
+        convert_docx_or_pdf(input_path, md_path)
+        return
+    raise ValueError(f'Unsupported file type: {input_path.suffix}')
+
+
+def build_cli_parser() -> argparse.ArgumentParser:
+    """Create CLI parser for document conversion."""
+    parser = argparse.ArgumentParser(description='Convert HTML/PDF/DOCX to Markdown.')
+    parser.add_argument(
+        '--input',
+        '-i',
+        type=Path,
+        help='Input file or directory. Defaults to built-in HTML batch conversion.',
     )
-    if md_content:
-        md_content += '\n'
-    md_path.write_text(md_content, encoding='utf-8')
+    parser.add_argument(
+        '--output',
+        '-o',
+        type=Path,
+        help='Output file or directory. Required when input is a directory.',
+    )
+    return parser
 
 
 def main() -> None:
@@ -357,6 +436,30 @@ def main() -> None:
         docs/manuals/ium_componentref/markdown/{directory}/*.md
         docs/manuals/commandref/markdown/commandref.md
     """
+    parser = build_cli_parser()
+    args = parser.parse_args()
+    if args.input is not None:
+        input_path = args.input
+        if not input_path.exists():
+            raise FileNotFoundError(f'Input path not found: {input_path}')
+        if input_path.is_file():
+            output_path = args.output or input_path.with_suffix('.md')
+            convert_document(input_path, output_path)
+            return
+        if args.output is None:
+            raise ValueError('Output directory is required when input is a directory.')
+        output_root = args.output
+        sources = [
+            path
+            for path in input_path.rglob('*')
+            if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+        ]
+        for source_path in tqdm(sources, desc='Converting files', unit='file'):
+            relative = source_path.relative_to(input_path)
+            output_path = output_root / relative.with_suffix('.md')
+            convert_document(source_path, output_path)
+        return
+
     html_root = Path('docs/manuals/ium_componentref/html')
     md_root = Path('docs/manuals/ium_componentref/markdown')
     targets = []
@@ -365,7 +468,7 @@ def main() -> None:
         if dir_path.exists():
             for html_file in dir_path.rglob('*.html'):
                 targets.append(html_file)
-    for html_file in targets:
+    for html_file in tqdm(targets, desc='Converting HTML manuals', unit='file'):
         rel = html_file.relative_to(html_root)
         md_file = md_root / rel.with_suffix('.md')
         convert_file(html_file, md_file)

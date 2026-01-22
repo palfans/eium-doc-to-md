@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "eIUM HTML documentation to GitHub Flavored Markdown converter using Pandoc with custom Lua filters"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "markitdown[pdf,docx]",
+    "tqdm",
+]
 authors = [
     { name = "eIUM Documentation Team" }
 ]
